@@ -1,0 +1,12 @@
+[project]
+name = "qcapp-ratings"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [{ name = "Patrick Sadil", email = "psadil@gmail.com" }]
+requires-python = ">=3.12"
+dependencies = ["django>=5.2.3"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
