@@ -1,0 +1,12 @@
+#!/bin/bash
+
+# layout_anat.nii.gz downloaded from https://github.com/SIMEXP/brain_match/blob/master/data/Misc/landmarks/layout_anat.nii.gz
+
+
+antsApplyTransforms -d 3 \
+    -i mask_all_layout_smoothed.nii.gz \
+    -r tpl-MNI152NLin2009cAsym_res-01_T1w.nii.gz \
+    -o tpl-MNI152NLin2009cAsym_res-01_desc-rois_dseg.nii.gz \
+    -n GenericLabel \
+    -u int \
+    -t Identity 

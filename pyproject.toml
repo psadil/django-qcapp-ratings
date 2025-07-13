@@ -1,12 +1,29 @@
 [project]
-name = "qcapp-ratings"
+name = "django-qcapp-ratings"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 authors = [{ name = "Patrick Sadil", email = "psadil@gmail.com" }]
 requires-python = ">=3.12"
-dependencies = ["django>=5.2.3"]
+dependencies = ["django>=5.2.4", "django-typer[rich]>=3.2.0"]
+
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "jupyter>=1.1.1",
+]
+manage = [
+    "matplotlib>=3.10.3",
+    "neurorm",
+    "nibabel>=5.3.2",
+    "nilearn>=0.12.0",
+    "numpy>=2.3.1",
+    "polars>=1.31.0",
+]
+
+[tool.uv.sources]
+neurorm = { git = "https://github.com/psadil/neurorm.git" }

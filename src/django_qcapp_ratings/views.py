@@ -16,6 +16,54 @@ FMAP_COREGISTRATION_VIEW = "fmap_coregistration"
 DTIFIT_VIEW = "dtifit"
 
 
+def is_likely_zlib_compressed(data: bytes) -> bool:
+    """
+    Checks if the given bytes data *likely* starts with a zlib header.
+    This is a heuristic and not 100% foolproof for all deflate variants,
+    but covers common zlib and gzip streams.
+    """
+    if len(data) < 2:
+        return False  # Zlib and Gzip headers are at least 2 bytes
+
+    # Common zlib header bytes (CMF and FLG)
+    # CMF: Compression Method and FLaGs.
+    # CM = 8 (DEFLATE), CINFO = 7 (32KB window size) -> CMF = 0x78
+    # FLG: FLaGs (FCHECK, FDICT, FLEVEL)
+    # Common FLaG values (e.g., 0x01, 0x9C, 0xDA, etc. where FCHECK is divisible by 31)
+    # The combination 0x78 0xDA is very common (CM=8, CINFO=7, FCHECK=21, FDICT=0, FLEVEL=2)
+    # Other common: 0x78 0x01, 0x78 0x9C, 0x78 0xBB etc.
+    # The decompressor handles the full range, but we can check for common starting bytes.
+    if data[0] == 0x78 and data[1] in {0x01, 0x9C, 0xDA, 0xBB}:
+        return True
+
+    # Gzip header (ID1, ID2)
+    # Gzip starts with 0x1F 0x8B
+    if data[0] == 0x1F and data[1] == 0x8B:
+        return True
+
+    return False
+
+
+def decompress_if_needed(data: bytes) -> bytes:
+    """
+    Decompresses the data if it's likely zlib/gzip compressed based on header check,
+    otherwise returns the original data. If a decompression error occurs after
+    a header check, it falls back to returning the original data.
+    """
+    if is_likely_zlib_compressed(data):
+        try:
+            # Attempt to decompress. Duck typing will handle zlib/gzip based on headers.
+            # windowBits=32+15 for auto-detection of zlib and gzip headers.
+            # Using wbits=MAX_WBITS will auto-detect gzip or zlib header.
+            return zlib.decompress(data, wbits=zlib.MAX_WBITS)
+        except zlib.error as e:
+            # If it looked like zlib but decompression failed, it might be corrupted
+            # or a very unusual deflate stream without a standard header that zlib can't immediately handle.
+            print(f"Decompression failed even though header suggested zlib/gzip: {e}")
+            return data  # Fallback to original data
+    return data
+
+
 # note: not a FormView because the (dynamic) image cannot be placed in form
 class RateView(abc.ABC, views.View):
     template_name = "rate_image.html"
@@ -38,10 +86,7 @@ class RateView(abc.ABC, views.View):
         await request.session.aset("image_id", img.pk)  # type: ignore
         logging.info("rendering")
         logging.info(img.pk)
-        if img.compressed:
-            data = zlib.decompress(img.img)
-        else:
-            data = img.img
+        data = decompress_if_needed(img.img)
         return shortcuts.render(
             request,
             template,

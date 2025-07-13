@@ -1,5 +1,6 @@
 import json
 import random
+import typing
 
 from asgiref import sync
 from django import forms, http, shortcuts
@@ -38,13 +39,26 @@ class Session(models.Model):
 
 class Image(models.Model):
     img = models.BinaryField()
-    compressed = models.BooleanField()
     slice = models.IntegerField(null=True)
     file1 = models.TextField(max_length=512)
     file2 = models.TextField(max_length=512, null=True)
     display = models.IntegerField(choices=DisplayMode.choices)
     step = models.IntegerField(choices=Step.choices)
     created = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["slice", "file1", "display", "step"], name="image_meta"
+            )
+        ]
+
+    def to_dict(self) -> dict[str, typing.Any]:
+        return {
+            k: v
+            for k, v in self.__dict__.items()
+            if k in ["img", "slice", "file1", "file2", "display", "step"]
+        }
 
 
 class FromRequest(models.Model):
@@ -119,8 +133,4 @@ class ClickedCoordinate(FromRequest):
 
 
 class Rating(FromRequest):
-    rating = models.IntegerField(choices=Ratings.choices, default=None, verbose_name="")
-
-
-class DynamicRating(FromRequest):
     rating = models.IntegerField(choices=Ratings.choices, default=None, verbose_name="")
