@@ -1,15 +1,22 @@
 import io
 import logging
+import tempfile
+import time
 import typing
-import zlib
+from datetime import datetime
 from pathlib import Path
+from wsgiref import handlers
 
+import imageio.v3 as iio
 import nibabel as nb
 import numpy as np
 import polars as pl
+import pygifsicle
+from dipy.reconst import dti
 from matplotlib import pyplot as plt
 from nilearn import image, plotting
 from nilearn.plotting import displays
+from scipy import ndimage
 
 from django_qcapp_ratings import datasets, models
 
@@ -77,10 +84,21 @@ def cuts_from_bbox(
     }
 
 
+def _savefig(p: displays.OrthoSlicer, dst: io.BytesIO) -> None:
+    now = datetime.now()
+    stamp = time.mktime(now.timetuple())
+    p.savefig(
+        dst,
+        metadata={"Creation Time": handlers.format_date_time(stamp)},
+        backend="Agg",
+        pil_kwargs={"compress_level": 9},
+    )
+
+
 def get_mask(
     cut: int,
-    mask_nii: nb.nifti1.Nifti1Image,
     file_nii: nb.nifti1.Nifti1Image,
+    mask_nii: nb.nifti1.Nifti1Image,
     display_mode: models.DisplayMode = models.DisplayMode(models.DisplayMode.X),
     figsize: tuple[float, float] = (6.4, 4.8),
 ) -> bytes:
@@ -95,16 +113,15 @@ def get_mask(
             display_mode=display_mode.name.lower(),
             figure=f,
             vmax=np.quantile(file_nii.get_fdata(), 0.95),
+            colorbar=False,
         )  # type: ignore
-        try:
+        if mask_nii:
             p.add_contours(
                 mask_nii, levels=[0.5], colors="g", filled=True, transparency=0.5
             )
-        except ValueError:
-            pass
-        p.savefig(img)
+        _savefig(p, img)
         plt.close(f)
-        return zlib.compress(img.getvalue())
+        return img.getvalue()
 
 
 def get_surface_localization(
@@ -129,15 +146,16 @@ def get_surface_localization(
             cut_coords=[cuts[cut]],
             display_mode=display_mode.name.lower(),
             figure=f,
+            colorbar=False,
         )  # type: ignore
         try:
             p.add_contours(white, colors="b", linewidths=linewidths, levels=levels)
             p.add_contours(pial, colors="r", linewidths=linewidths, levels=levels)
         except ValueError:
             pass
-        p.savefig(img)
+        _savefig(p, img)
         plt.close(f)
-        return zlib.compress(img.getvalue())
+        return img.getvalue()
 
 
 def get_spatial_normalization(
@@ -157,10 +175,11 @@ def get_spatial_normalization(
             cut_coords=[SPATIAL_NORMALIZATION_CUTS[display_mode.name.lower()][cut]],
             display_mode=display_mode.name.lower(),
             figure=f,
+            colorbar=False,
         )  # type: ignore
-        p.savefig(img)
+        _savefig(p, img)
         plt.close(f)
-        return zlib.compress(img.getvalue())
+        return img.getvalue()
 
 
 def mgz_to_nifti(src) -> nb.nifti1.Nifti1Image:
@@ -202,3 +221,156 @@ async def merge_imgs(imgs: typing.Sequence[models.Image]) -> None:
             update_fields=["img", "created"],
             unique_fields=["slice", "file1", "display", "step"],
         )
+
+
+def get_fmap_coregistration(
+    cut: int,
+    mask_nii: nb.nifti1.Nifti1Image,
+    file_nii: nb.nifti1.Nifti1Image,
+    file2_nii: nb.nifti1.Nifti1Image,
+    display_mode: models.DisplayMode = models.DisplayMode(models.DisplayMode.X),
+    figsize: tuple[float, float] = (6.4, 4.8),
+) -> bytes:
+    cuts = cuts_from_bbox(mask_nii, cuts=N_CUTS).get(display_mode)
+    if cuts is None:
+        raise ValueError("Misaglinged Display Mode")
+    f0 = plt.figure(figsize=figsize, layout="none")
+    f1 = plt.figure(figsize=figsize, layout="none")
+
+    with io.BytesIO() as frame0:
+        with io.BytesIO() as frame1:
+            # https://github.com/nipreps/nireports/blob/e7beccc14670e820c646306eb1d7dd3d56591450/nireports/reportlets/utils.py#L62-L70
+            p: displays.OrthoSlicer = plotting.plot_anat(
+                file_nii,
+                cut_coords=[cuts[cut]],
+                display_mode=display_mode.name.lower(),
+                figure=f0,
+                vmax=np.quantile(file_nii.get_fdata(), 0.998),
+                vmin=np.quantile(file_nii.get_fdata(), 0.15),
+                colorbar=False,
+                title="func/boldref",
+            )  # type: ignore
+            try:
+                p.add_contours(mask_nii, levels=[0.5], colors="g", transparency=0.5)
+            except ValueError:
+                pass
+            _savefig(p, frame0)
+            plt.close(f0)
+
+            # https://github.com/nipreps/nireports/blob/e7beccc14670e820c646306eb1d7dd3d56591450/nireports/reportlets/utils.py#L62-L70
+            p: displays.OrthoSlicer = plotting.plot_anat(
+                file2_nii,
+                cut_coords=[cuts[cut]],
+                display_mode=display_mode.name.lower(),
+                figure=f1,
+                vmax=np.quantile(file2_nii.get_fdata(), 0.998),
+                vmin=np.quantile(file2_nii.get_fdata(), 0.15),
+                colorbar=False,
+                title="fmap/epi",
+            )  # type: ignore
+            try:
+                p.add_contours(mask_nii, levels=[0.5], colors="g", transparency=0.5)
+            except ValueError:
+                pass
+            _savefig(p, frame1)
+            plt.close(f1)
+
+            frames = np.stack(
+                [
+                    iio.imread(x, index=None)
+                    for x in [frame0.getvalue(), frame1.getvalue()]
+                ],
+                axis=0,
+            )
+        with tempfile.NamedTemporaryFile(suffix=".gif") as tf:
+            iio.imwrite(tf.name, frames, loop=0, duration=300, optimize=True)
+            pygifsicle.optimize(tf.name)
+            return tf.read()
+
+
+def cuts_from_bbox2(mask_nii: nb.nifti1.Nifti1Image, cuts: int = 7) -> np.ndarray:
+    """Find equi-spaced cuts for presenting images."""
+    if mask_nii.affine is None:
+        raise ValueError("nifti must have affine")
+    mask_data = np.asanyarray(mask_nii.dataobj) > 0.0
+
+    # First, project the number of masked voxels on each axes
+    ijk_counts = [
+        mask_data.sum(2).sum(1),  # project sagittal planes to transverse (i) axis
+        mask_data.sum(2).sum(0),  # project coronal planes to to longitudinal (j) axis
+        mask_data.sum(1).sum(0),  # project axial planes to vertical (k) axis
+    ]
+
+    # If all voxels are masked in a slice (say that happens at k=10),
+    # then the value for ijk_counts for the projection to k (ie. ijk_counts[2])
+    # at that element of the orthogonal axes (ijk_counts[2][10]) is
+    # the total number of voxels in that slice (ie. Ni x Nj).
+    # Here we define some thresholds to consider the plane as "masked"
+    # The thresholds vary because of the shape of the brain
+    # I have manually found that for the axial view requiring 30%
+    # of the slice elements to be masked drops almost empty boxes
+    # in the mosaic of axial planes (and also addresses #281)
+    ijk_th = np.ceil(
+        [
+            (mask_data.shape[1] * mask_data.shape[2]) * 0.2,  # sagittal
+            (mask_data.shape[0] * mask_data.shape[2]) * 0.1,  # coronal
+            (mask_data.shape[0] * mask_data.shape[1]) * 0.3,  # axial
+        ]
+    ).astype(int)
+
+    vox_coords = np.zeros((4, cuts), dtype=np.float32)
+    vox_coords[-1, :] = 1.0
+    for ax, (c, th) in enumerate(zip(ijk_counts, ijk_th)):
+        # Start with full plane if mask is seemingly empty
+        smin, smax = (0, mask_data.shape[ax] - 1)
+
+        B = np.argwhere(c > th)
+        if B.size < cuts:  # Threshold too high
+            B = np.argwhere(c > 0)
+        if B.size:
+            smin, smax = B.min(), B.max()
+
+        vox_coords[ax, :] = np.linspace(smin, smax, num=cuts + 2)[1:-1]
+
+    return np.around(vox_coords).astype(np.uint32)
+
+
+def get_dtifit(
+    nii: nb.nifti1.Nifti1Image,
+    v1: nb.nifti1.Nifti1Image,
+    v2: nb.nifti1.Nifti1Image,
+    v3: nb.nifti1.Nifti1Image,
+    figsize: tuple[float, float] = (6.4, 4.8),
+) -> bytes:
+    evecs = np.stack([v1.get_fdata(), v2.get_fdata(), v3.get_fdata()], axis=-1)
+    rgb = dti.color_fa(nii.get_fdata(), evecs)
+
+    n_cuts = 20
+    mask_nii: nb.nifti1.Nifti1Image = image.binarize_img(
+        nii, 0.0001, two_sided=False, copy_header=True
+    )  # type: ignore
+    cuts = cuts_from_bbox2(mask_nii, cuts=n_cuts)
+
+    with tempfile.TemporaryDirectory() as _tmpd:
+        tmpd = Path(_tmpd)
+        images: list[Path] = []
+        for cut in range(n_cuts):
+            plt.figure(figsize=figsize, layout="none")
+            plt.imshow(np.clip(ndimage.rotate(rgb[:, :, cuts[2, cut]], 90), 0, 1))
+            img = tmpd / f"{cut}.png"
+            plt.axis("off")
+            plt.savefig(
+                img,
+                backend="Agg",
+                pil_kwargs={"compress_level": 9},
+                bbox_inches="tight",
+            )
+            plt.close()
+            images.append(img)
+
+        frames = np.stack([iio.imread(img) for img in images + images[-2:1:-1]], axis=0)
+
+    with tempfile.NamedTemporaryFile(suffix=".gif") as tf:
+        iio.imwrite(tf.name, frames, loop=0, duration=200)
+        pygifsicle.optimize(tf.name)
+        return tf.read()

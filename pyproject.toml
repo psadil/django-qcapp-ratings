@@ -13,16 +13,17 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [dependency-groups]
-dev = [
-    "jupyter>=1.1.1",
-]
+dev = ["jupyter>=1.1.1"]
 manage = [
+    "dipy>=1.11.0",
+    "imageio>=2.37.0",
     "matplotlib>=3.10.3",
     "neurorm",
     "nibabel>=5.3.2",
     "nilearn>=0.12.0",
     "numpy>=2.3.1",
     "polars>=1.31.0",
+    "pygifsicle>=1.1.0",
 ]
 
 [tool.uv.sources]

@@ -144,6 +144,8 @@ class RateSurfaceLocalization(ClickView):
 
 
 class RateFMapCoregistration(RateView):
+    img_type = "gif"
+
     @property
     def step(self) -> models.Step:
         return models.Step.FMAP_COREGISTRATION
