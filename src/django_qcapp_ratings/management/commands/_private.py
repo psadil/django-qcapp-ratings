@@ -10,6 +10,7 @@ from wsgiref import handlers
 import imageio.v3 as iio
 import nibabel as nb
 import numpy as np
+import numpy.typing as npt
 import polars as pl
 import pygifsicle
 from dipy.reconst import dti
@@ -28,9 +29,9 @@ SPATIAL_NORMALIZATION_CUTS = {
 }
 
 
-def cuts_from_bbox(
+def cuts_from_bbox_ijk(
     mask_nii: nb.nifti1.Nifti1Image, cuts: int = 7
-) -> dict[models.DisplayMode, list[float]]:
+) -> npt.NDArray[np.float32]:
     """Find equi-spaced cuts for presenting images."""
     if mask_nii.affine is None:
         raise ValueError("nifti must have affine")
@@ -73,6 +74,17 @@ def cuts_from_bbox(
             smin, smax = B.min(), B.max()
 
         vox_coords[ax, :] = np.linspace(smin, smax, num=cuts + 2)[1:-1]
+
+    return vox_coords
+
+
+def cuts_from_bbox(
+    mask_nii: nb.nifti1.Nifti1Image, cuts: int = 7
+) -> dict[models.DisplayMode, list[float]]:
+    if mask_nii.affine is None:
+        raise ValueError("nifti must have affine")
+
+    vox_coords = cuts_from_bbox_ijk(mask_nii=mask_nii, cuts=cuts)
 
     ras_coords = mask_nii.affine.dot(vox_coords)[:3, ...]
     return {
@@ -288,53 +300,6 @@ def get_fmap_coregistration(
             return tf.read()
 
 
-def cuts_from_bbox2(mask_nii: nb.nifti1.Nifti1Image, cuts: int = 7) -> np.ndarray:
-    """Find equi-spaced cuts for presenting images."""
-    if mask_nii.affine is None:
-        raise ValueError("nifti must have affine")
-    mask_data = np.asanyarray(mask_nii.dataobj) > 0.0
-
-    # First, project the number of masked voxels on each axes
-    ijk_counts = [
-        mask_data.sum(2).sum(1),  # project sagittal planes to transverse (i) axis
-        mask_data.sum(2).sum(0),  # project coronal planes to to longitudinal (j) axis
-        mask_data.sum(1).sum(0),  # project axial planes to vertical (k) axis
-    ]
-
-    # If all voxels are masked in a slice (say that happens at k=10),
-    # then the value for ijk_counts for the projection to k (ie. ijk_counts[2])
-    # at that element of the orthogonal axes (ijk_counts[2][10]) is
-    # the total number of voxels in that slice (ie. Ni x Nj).
-    # Here we define some thresholds to consider the plane as "masked"
-    # The thresholds vary because of the shape of the brain
-    # I have manually found that for the axial view requiring 30%
-    # of the slice elements to be masked drops almost empty boxes
-    # in the mosaic of axial planes (and also addresses #281)
-    ijk_th = np.ceil(
-        [
-            (mask_data.shape[1] * mask_data.shape[2]) * 0.2,  # sagittal
-            (mask_data.shape[0] * mask_data.shape[2]) * 0.1,  # coronal
-            (mask_data.shape[0] * mask_data.shape[1]) * 0.3,  # axial
-        ]
-    ).astype(int)
-
-    vox_coords = np.zeros((4, cuts), dtype=np.float32)
-    vox_coords[-1, :] = 1.0
-    for ax, (c, th) in enumerate(zip(ijk_counts, ijk_th)):
-        # Start with full plane if mask is seemingly empty
-        smin, smax = (0, mask_data.shape[ax] - 1)
-
-        B = np.argwhere(c > th)
-        if B.size < cuts:  # Threshold too high
-            B = np.argwhere(c > 0)
-        if B.size:
-            smin, smax = B.min(), B.max()
-
-        vox_coords[ax, :] = np.linspace(smin, smax, num=cuts + 2)[1:-1]
-
-    return np.around(vox_coords).astype(np.uint32)
-
-
 def get_dtifit(
     nii: nb.nifti1.Nifti1Image,
     v1: nb.nifti1.Nifti1Image,
@@ -349,7 +314,7 @@ def get_dtifit(
     mask_nii: nb.nifti1.Nifti1Image = image.binarize_img(
         nii, 0.0001, two_sided=False, copy_header=True
     )  # type: ignore
-    cuts = cuts_from_bbox2(mask_nii, cuts=n_cuts)
+    cuts = cuts_from_bbox_ijk(mask_nii, cuts=n_cuts).round().astype(np.uint16)
 
     with tempfile.TemporaryDirectory() as _tmpd:
         tmpd = Path(_tmpd)
