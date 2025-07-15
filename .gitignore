@@ -10,4 +10,4 @@ wheels/
 .venv
 
 # niftis
-*.nii.gz
+tools/*.nii.gz
