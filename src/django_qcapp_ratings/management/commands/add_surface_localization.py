@@ -26,17 +26,21 @@ class Command(TyperCommand):
                 shell_complete=path.paths,
             ),
         ],
-        include: t.Annotated[
-            list[str],
-            typer.Argument(),
-        ],
+        include: t.Annotated[list[str] | None, typer.Option()] = None,
+        exclude: t.Annotated[list[str] | None, typer.Option()] = None,
     ):
         """
         Add surface localization figures
         """
 
         for sub in subjects_dir.glob("*"):
-            if sub.name not in include:
+            if include and sub.name not in include:
+                logging.info(
+                    f"--include specified but {sub.name} not in list. Excluding"
+                )
+                continue
+            if exclude and sub.name in exclude:
+                logging.info(f"--exclude specified and {sub.name} in list. Excluding")
                 continue
             fs = freesurfer.FreeSurferSubject.from_subjects_dir(
                 subjects_dir=subjects_dir, subject_id=sub.name

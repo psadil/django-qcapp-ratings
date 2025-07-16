@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import typing as t
 from pathlib import Path
@@ -45,7 +44,7 @@ class Command(TyperCommand):
             .to_list()
         )
 
-        anats = [x.replace("desc-brain_mask", "desc-preproc_T1w") for x in masks]
+        anats = [x.replace("desc-brain_mask", "T1w") for x in masks]
 
         for mask, anat in zip(masks, anats):
             logging.info(f"{mask=}")
@@ -71,13 +70,11 @@ class Command(TyperCommand):
                         mask_nii=mask_nii,
                         file_nii=file_nii,
                     )
-                    asyncio.run(
-                        models.Image.objects.acreate(
-                            img=i,
-                            slice=cut,
-                            display=display_mode[0],
-                            step=models.Step.MASK,
-                            file1=file1,
-                            file2=Path(anat).name,
-                        )
+                    models.Image.objects.create(
+                        img=i,
+                        slice=cut,
+                        display=display_mode[0],
+                        step=models.Step.MASK,
+                        file1=file1,
+                        file2=Path(anat).name,
                     )
