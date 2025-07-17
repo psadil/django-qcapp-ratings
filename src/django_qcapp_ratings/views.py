@@ -4,10 +4,9 @@ import logging
 import zlib
 
 from django import http, shortcuts, urls, views
-from django.db import models as dm
 from django.views.generic import edit
 
-from . import forms, models
+from django_qcapp_ratings import forms, models, selectors
 
 MASK_VIEW = "mask"
 SPATIAL_NORMALIZATION_VIEW = "spatial_normalization"
@@ -80,7 +79,7 @@ class RateView(abc.ABC, views.View):
 
     async def _get(self, request: http.HttpRequest, template: str) -> http.HttpResponse:
         logging.info("setting next")
-        img = await _get_mask_with_fewest_ratings(
+        img = await selectors.get_image_with_fewest_ratings(
             self.step, related=self.related, key=self.key
         )
         await request.session.aset("image_id", img.pk)  # type: ignore
@@ -184,20 +183,3 @@ class LayoutView(edit.FormView):
         self.request.session["session_id"] = session.pk
         self.request.session["step"] = session.step
         return super().form_valid(form)
-
-
-async def _get_mask_with_fewest_ratings(
-    step: models.Step, related: str, key: str
-) -> models.Image:
-    masks_in_layout = await (
-        models.Image.objects.filter(step=step.value)
-        .select_related(related)
-        .values("id")
-        .annotate(n_ratings=dm.Count(f"{related}__{key}"))
-        .order_by("n_ratings")
-        .afirst()
-    )
-    if masks_in_layout is None:
-        raise http.Http404("No masks in layout")
-
-    return await models.Image.objects.aget(pk=masks_in_layout.get("id"))

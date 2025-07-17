@@ -70,7 +70,7 @@ class Command(TyperCommand):
                         if models.Image.objects.filter(
                             slice=cut,
                             display=display_mode[0],
-                            step=models.Step.MASK,
+                            step=models.Step.FMAP_COREGISTRATION,
                             file1=file1,
                         ).exists():
                             logging.info("Found object. Skipping")
