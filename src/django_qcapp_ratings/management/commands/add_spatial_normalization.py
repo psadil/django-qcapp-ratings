@@ -55,7 +55,7 @@ class Command(TyperCommand):
             file1 = Path(anat).name
             for display_mode in models.DisplayMode.choices:
                 logging.info(f"{display_mode=}")
-                for cut in range(2):
+                for cut in range(3):
                     logging.info(f"{cut=}")
                     if (
                         i := models.Image.objects.filter(

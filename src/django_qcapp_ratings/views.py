@@ -1,12 +1,13 @@
 import abc
 import base64
 import logging
-import zlib
+import typing
 
+from celery import result
 from django import http, shortcuts, urls, views
 from django.views.generic import edit
 
-from django_qcapp_ratings import forms, models, selectors
+from django_qcapp_ratings import forms, models, tasks
 
 MASK_VIEW = "mask"
 SPATIAL_NORMALIZATION_VIEW = "spatial_normalization"
@@ -14,53 +15,7 @@ SURFACE_LOCALIZATION_VIEW = "surface_localization"
 FMAP_COREGISTRATION_VIEW = "fmap_coregistration"
 DTIFIT_VIEW = "dtifit"
 
-
-def is_likely_zlib_compressed(data: bytes) -> bool:
-    """
-    Checks if the given bytes data *likely* starts with a zlib header.
-    This is a heuristic and not 100% foolproof for all deflate variants,
-    but covers common zlib and gzip streams.
-    """
-    if len(data) < 2:
-        return False  # Zlib and Gzip headers are at least 2 bytes
-
-    # Common zlib header bytes (CMF and FLG)
-    # CMF: Compression Method and FLaGs.
-    # CM = 8 (DEFLATE), CINFO = 7 (32KB window size) -> CMF = 0x78
-    # FLG: FLaGs (FCHECK, FDICT, FLEVEL)
-    # Common FLaG values (e.g., 0x01, 0x9C, 0xDA, etc. where FCHECK is divisible by 31)
-    # The combination 0x78 0xDA is very common (CM=8, CINFO=7, FCHECK=21, FDICT=0, FLEVEL=2)
-    # Other common: 0x78 0x01, 0x78 0x9C, 0x78 0xBB etc.
-    # The decompressor handles the full range, but we can check for common starting bytes.
-    if data[0] == 0x78 and data[1] in {0x01, 0x9C, 0xDA, 0xBB}:
-        return True
-
-    # Gzip header (ID1, ID2)
-    # Gzip starts with 0x1F 0x8B
-    if data[0] == 0x1F and data[1] == 0x8B:
-        return True
-
-    return False
-
-
-def decompress_if_needed(data: bytes) -> bytes:
-    """
-    Decompresses the data if it's likely zlib/gzip compressed based on header check,
-    otherwise returns the original data. If a decompression error occurs after
-    a header check, it falls back to returning the original data.
-    """
-    if is_likely_zlib_compressed(data):
-        try:
-            # Attempt to decompress. Duck typing will handle zlib/gzip based on headers.
-            # windowBits=32+15 for auto-detection of zlib and gzip headers.
-            # Using wbits=MAX_WBITS will auto-detect gzip or zlib header.
-            return zlib.decompress(data, wbits=zlib.MAX_WBITS)
-        except zlib.error as e:
-            # If it looked like zlib but decompression failed, it might be corrupted
-            # or a very unusual deflate stream without a standard header that zlib can't immediately handle.
-            print(f"Decompression failed even though header suggested zlib/gzip: {e}")
-            return data  # Fallback to original data
-    return data
+IMG_TASK = "img_task"
 
 
 # note: not a FormView because the (dynamic) image cannot be placed in form
@@ -78,27 +33,52 @@ class RateView(abc.ABC, views.View):
         raise NotImplementedError
 
     async def _get(self, request: http.HttpRequest, template: str) -> http.HttpResponse:
-        logging.info("setting next")
-        img = await selectors.get_image_with_fewest_ratings(
-            self.step, related=self.related, key=self.key
+        logging.info("looking for img task")
+        img_task = await request.session.aget(IMG_TASK)  # type: ignore
+        if img_task is None:
+            raise http.Http404("no img_task found")
+        res = result.AsyncResult(img_task)
+        logging.info(f"{res=}")
+
+        logging.info("getting results of img task")
+        img: dict[str, typing.Any] = res.get()  # type: ignore
+        img_id = img.get("id")
+        if img_id is None:
+            raise http.Http404("task seems to have failed")
+
+        logging.info("starting img_next task")
+        img_task = tasks.run_db_query_async.delay(  # type: ignore
+            step=self.step, related=self.related, key=self.key, last_pk=img_id
         )
-        await request.session.aset("image_id", img.pk)  # type: ignore
-        logging.info("rendering")
-        logging.info(img.pk)
-        data = decompress_if_needed(img.img)
+        await request.session.aset(IMG_TASK, img_task.id)  # type: ignore
+
+        await request.session.aset("image_id", img_id)  # type: ignore
+        logging.info(f"rendering {img_id}")
         return shortcuts.render(
             request,
             template,
             {
                 "form": self.form_class(),
-                "image": f"data:image/{self.img_type};base64,{base64.b64encode(data).decode()}",
+                "image": f"data:image/{self.img_type};base64,{base64.b64encode(img.get("img", "")).decode()}",
             },
         )
 
     async def get_main(self, request: http.HttpRequest) -> http.HttpResponse:
+        logging.info("special 'get_main'")
+
         return await self._get(request=request, template=self.main_template)
 
     async def get(self, request: http.HttpRequest) -> http.HttpResponse:
+        logging.info("regular 'get'")
+
+        logging.info("getting first img")
+        img_task = tasks.run_db_query_async.delay(  # type: ignore
+            step=self.step, related=self.related, key=self.key
+        )
+
+        logging.info("updating session")
+        await request.session.aset(IMG_TASK, img_task.id)  # type: ignore
+
         return await self._get(request=request, template=self.template_name)
 
     async def post(self, request: http.HttpRequest) -> http.HttpResponse:

@@ -54,11 +54,7 @@ class Image(models.Model):
         ]
 
     def to_dict(self) -> dict[str, typing.Any]:
-        return {
-            k: v
-            for k, v in self.__dict__.items()
-            if k in ["img", "slice", "file1", "file2", "display", "step"]
-        }
+        return {"img": self.img, "id": self.pk}
 
 
 class FromRequest(models.Model):
