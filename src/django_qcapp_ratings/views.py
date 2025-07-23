@@ -4,6 +4,7 @@ import logging
 import typing
 
 from celery import result
+from celery.exceptions import TimeoutError
 from django import http, shortcuts, urls, views
 from django.views.generic import edit
 
@@ -16,6 +17,7 @@ FMAP_COREGISTRATION_VIEW = "fmap_coregistration"
 DTIFIT_VIEW = "dtifit"
 
 IMG_TASK = "img_task"
+TASK_TIMEOUT_SEC = 20
 
 
 # note: not a FormView because the (dynamic) image cannot be placed in form
@@ -41,7 +43,13 @@ class RateView(abc.ABC, views.View):
         logging.info(f"{res=}")
 
         logging.info("getting results of img task")
-        img: dict[str, typing.Any] = res.get()  # type: ignore
+        try:
+            img: dict[str, typing.Any] = res.get(timeout=TASK_TIMEOUT_SEC)  # type: ignore
+        except TimeoutError:
+            raise http.Http404(
+                "There has been an issue. Please return to the homepage."
+            )
+
         img_id = img.get("id")
         if img_id is None:
             raise http.Http404("task seems to have failed")
@@ -64,13 +72,9 @@ class RateView(abc.ABC, views.View):
         )
 
     async def get_main(self, request: http.HttpRequest) -> http.HttpResponse:
-        logging.info("special 'get_main'")
-
         return await self._get(request=request, template=self.main_template)
 
     async def get(self, request: http.HttpRequest) -> http.HttpResponse:
-        logging.info("regular 'get'")
-
         logging.info("getting first img")
         img_task = tasks.run_db_query_async.delay(  # type: ignore
             step=self.step, related=self.related, key=self.key
