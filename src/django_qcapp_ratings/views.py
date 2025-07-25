@@ -1,111 +1,88 @@
 import abc
-import base64
 import logging
-import typing
 
-from celery import result
 from celery.exceptions import TimeoutError
 from django import http, shortcuts, urls, views
 from django.views.generic import edit
 
-from django_qcapp_ratings import forms, models, tasks
+from django_qcapp_ratings import forms, models, selectors, tasks
 
 MASK_VIEW = "mask"
 SPATIAL_NORMALIZATION_VIEW = "spatial_normalization"
 SURFACE_LOCALIZATION_VIEW = "surface_localization"
 FMAP_COREGISTRATION_VIEW = "fmap_coregistration"
 DTIFIT_VIEW = "dtifit"
+RATE_PARTIAL = "rate_partial"
+CLICK_PARTIAL = "click_partial"
+
 
 IMG_TASK = "img_task"
-TASK_TIMEOUT_SEC = 20
 
 
-# note: not a FormView because the (dynamic) image cannot be placed in form
-class RateView(abc.ABC, views.View):
-    template_name = "rate_image.html"
+class RatePartial(views.View):
+    template_name = f"{RATE_PARTIAL}.html"
+
+    async def get(self, request: http.HttpRequest) -> http.HttpResponse:
+        try:
+            img = await selectors.get_img_id(request)
+        except TimeoutError:
+            return http.HttpResponse(
+                "There has been an issue. Please return to the homepage."
+            )
+
+        logging.info("starting img_next task")
+        img_task = tasks.run_db_query_async.delay(step=img.step, last_pk=img.id)
+        await request.session.aset(IMG_TASK, img_task.id)
+        await request.session.aset("image_id", img.id)
+        logging.info(f"rendering {img.id}")
+        return shortcuts.render(
+            request,
+            self.template_name,
+            {"img_type": img.img_type, "image": img.img_decoded},
+        )
+
+
+class ClickPartial(RatePartial):
+    template_name = f"{CLICK_PARTIAL}.html"
+
+
+class RateView(abc.ABC, edit.CreateView):
+    template_name = "rate.html"
     form_class = forms.RatingForm
-    main_template = "main.html"
-    related = "rating"
-    key = "source_data_issue"
-    img_type = "png"
+    success_url = f"/{RATE_PARTIAL}/"
 
     @property
     @abc.abstractmethod
     def step(self) -> models.Step:
         raise NotImplementedError
 
-    async def _get(self, request: http.HttpRequest, template: str) -> http.HttpResponse:
-        logging.info("looking for img task")
-        img_task = await request.session.aget(IMG_TASK)  # type: ignore
-        if img_task is None:
-            raise http.Http404("no img_task found")
-        res = result.AsyncResult(img_task)
-        logging.info(f"{res=}")
-
-        logging.info("getting results of img task")
-        try:
-            img: dict[str, typing.Any] = res.get(timeout=TASK_TIMEOUT_SEC)  # type: ignore
-        except TimeoutError:
-            raise http.Http404(
-                "There has been an issue. Please return to the homepage."
-            )
-
-        img_id = img.get("id")
-        if img_id is None:
-            raise http.Http404("task seems to have failed")
-
-        logging.info("starting img_next task")
-        img_task = tasks.run_db_query_async.delay(  # type: ignore
-            step=self.step, related=self.related, key=self.key, last_pk=img_id
-        )
-        await request.session.aset(IMG_TASK, img_task.id)  # type: ignore
-
-        await request.session.aset("image_id", img_id)  # type: ignore
-        logging.info(f"rendering {img_id}")
-        return shortcuts.render(
-            request,
-            template,
-            {
-                "form": self.form_class(),
-                "image": f"data:image/{self.img_type};base64,{base64.b64encode(img.get("img", "")).decode()}",
-            },
-        )
-
-    async def get_main(self, request: http.HttpRequest) -> http.HttpResponse:
-        return await self._get(request=request, template=self.main_template)
-
-    async def get(self, request: http.HttpRequest) -> http.HttpResponse:
+    def get(self, request: http.HttpRequest, *args, **kwargs):
         logging.info("getting first img")
-        img_task = tasks.run_db_query_async.delay(  # type: ignore
-            step=self.step, related=self.related, key=self.key
-        )
+        img_task = tasks.run_db_query_async.delay(step=self.step)
 
-        logging.info("updating session")
-        await request.session.aset(IMG_TASK, img_task.id)  # type: ignore
+        logging.info(f"updating session with {img_task=}")
+        request.session[IMG_TASK] = img_task.id
 
-        return await self._get(request=request, template=self.template_name)
+        return super().get(request, *args, **kwargs)
 
-    async def post(self, request: http.HttpRequest) -> http.HttpResponse:
-        form = self.form_class(request.POST)
+    def post(self, request: http.HttpRequest, *args, **kwargs) -> http.HttpResponse:
+        form = self.get_form()
         if form.is_valid():
             logging.info("saving rating")
-
-            # rating = sync.sync_to_async(form.save)()
-
-            await self.form_class.Meta.model.from_request_form(
-                request=request, form=form
+            self.form_class.Meta.model.from_request_form(  # type: ignore
+                request=request, **form.cleaned_data
             )
 
-            return await self.get_main(request)
+            # call this instead of form_valid because the model has already been saved
+            return http.HttpResponseRedirect(self.success_url)  # type: ignore
 
         raise http.Http404("Submitted invalid rating")
 
 
 class ClickView(RateView):
     template_name = "click.html"
-    main_template = "click_canvas.html"
     form_class = forms.ClickForm
-    related = "clickedcoordinate"
+    success_url = f"/{CLICK_PARTIAL}/"
 
 
 class RateMask(ClickView):
@@ -127,16 +104,12 @@ class RateSurfaceLocalization(ClickView):
 
 
 class RateFMapCoregistration(RateView):
-    img_type = "gif"
-
     @property
     def step(self) -> models.Step:
         return models.Step.FMAP_COREGISTRATION
 
 
 class RateDTIFIT(RateView):
-    img_type = "gif"
-
     @property
     def step(self) -> models.Step:
         return models.Step.DTIFIT

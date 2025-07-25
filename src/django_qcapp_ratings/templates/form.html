@@ -1,6 +1,6 @@
 <div class="card shadow-sm">
     <div class="card-body p-4">
-        <form id="form" hx-post="{{request.path}}" hx-swap="outerHTML" hx-target="#main"
+        <form id="form" hx-post="{{request.path}}" hx-target="#main"
             hx-on::after-request="if(event.detail.successful) this.reset()">
             {% csrf_token %}
 
@@ -77,4 +77,47 @@
             radio.checked = true;
         }
     }
+
+    // Hotkey support for rating selection and submit
+    document.addEventListener('keydown', function (event) {
+        // Only trigger if the form is present
+        const form = document.getElementById('form');
+        if (!form) return;
+
+        // Don't trigger hotkeys if focused on a textarea or input
+        const active = document.activeElement;
+        if (active && (active.tagName === 'TEXTAREA' || (active.tagName === 'INPUT' && active.type !== 'radio'))) {
+            return;
+        }
+
+        // Map hotkeys to rating values
+        const keyMap = {
+            'p': '0', // Pass
+            'u': '1', // Unsure
+            'f': '2'  // Fail
+        };
+        const key = event.key.toLowerCase();
+        if (key in keyMap) {
+            const value = keyMap[key];
+            // Find the corresponding rating option
+            const options = document.querySelectorAll('.rating-option');
+            for (const option of options) {
+                const radio = option.querySelector('input[type="radio"]');
+                if (radio && radio.value === value) {
+                    selectRating(option, value);
+                    // Optionally focus the radio for accessibility
+                    radio.focus();
+                    event.preventDefault();
+                    break;
+                }
+            }
+        } else if (key === 'enter') {
+            // Only submit if a rating is selected
+            const selectedRadio = document.querySelector('.rating-option input[type="radio"]:checked');
+            if (selectedRadio) {
+                form.requestSubmit ? form.requestSubmit() : form.submit();
+                event.preventDefault();
+            }
+        }
+    });
 </script>

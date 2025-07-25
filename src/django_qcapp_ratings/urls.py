@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views
+from django_qcapp_ratings import views
 
 urlpatterns = [
     path("", views.LayoutView.as_view(), name="index"),
@@ -21,4 +21,12 @@ urlpatterns = [
         name=views.FMAP_COREGISTRATION_VIEW,
     ),
     path(f"{views.DTIFIT_VIEW}/", views.RateDTIFIT.as_view(), name=views.DTIFIT_VIEW),
+    path(
+        f"{views.RATE_PARTIAL}/", views.RatePartial.as_view(), name=views.RATE_PARTIAL
+    ),
+    path(
+        f"{views.CLICK_PARTIAL}/",
+        views.ClickPartial.as_view(),
+        name=views.CLICK_PARTIAL,
+    ),
 ]

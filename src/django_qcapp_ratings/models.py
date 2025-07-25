@@ -2,8 +2,7 @@ import json
 import random
 import typing
 
-from asgiref import sync
-from django import forms, http, shortcuts
+from django import http, shortcuts
 from django.db import models
 
 
@@ -54,7 +53,7 @@ class Image(models.Model):
         ]
 
     def to_dict(self) -> dict[str, typing.Any]:
-        return {"img": self.img, "id": self.pk}
+        return {"id": self.pk, "step": self.step, "img": self.img}
 
 
 class FromRequest(models.Model):
@@ -64,26 +63,24 @@ class FromRequest(models.Model):
     image = models.ForeignKey(Image, on_delete=models.CASCADE)
     session = models.ForeignKey(Session, on_delete=models.CASCADE)
     source_data_issue = models.BooleanField(
-        default=False, verbose_name="Source Data Issue"
+        default=False,
+        verbose_name="I suspect there might be a problem with the image quality",
+    )
+    comments = models.TextField(
+        default="",
+        help_text="Please only add additional comments if necessary.",
+        blank=True,
     )
     created = models.DateTimeField(auto_now_add=True)
 
     @classmethod
-    async def from_request_form(
-        cls, request: http.HttpRequest, form: forms.ModelForm
-    ) -> None:
-        image = shortcuts.aget_object_or_404(  # type: ignore
-            Image,
-            pk=await request.session.aget("image_id"),  # type: ignore
-        )
-        session = shortcuts.aget_object_or_404(  # type: ignore
-            Session,
-            pk=await request.session.aget("session_id"),  # type: ignore
+    def from_request_form(cls, request: http.HttpRequest, **kwargs) -> None:
+        image = shortcuts.get_object_or_404(Image, pk=request.session.get("image_id"))
+        session = shortcuts.get_object_or_404(
+            Session, pk=request.session.get("session_id")
         )
 
-        await cls.objects.acreate(
-            image=await image, **form.cleaned_data, session=await session
-        )
+        cls.objects.create(image=image, session=session, **kwargs)
 
 
 class ClickedCoordinate(FromRequest):
@@ -91,27 +88,17 @@ class ClickedCoordinate(FromRequest):
     y = models.FloatField(null=True)
 
     @classmethod
-    async def from_request_form(
-        cls, request: http.HttpRequest, form: forms.ModelForm
-    ) -> None:
-        image = await shortcuts.aget_object_or_404(  # type: ignore
-            Image,
-            pk=await request.session.aget("image_id"),  # type: ignore
-        )
-        session = await shortcuts.aget_object_or_404(  # type: ignore
-            Session,
-            pk=await request.session.aget("session_id"),  # type: ignore
+    def from_request_form(cls, request: http.HttpRequest, **kwargs) -> None:
+        image = shortcuts.get_object_or_404(Image, pk=request.session.get("image_id"))
+        session = shortcuts.get_object_or_404(
+            Session, pk=request.session.get("session_id")
         )
         points_raw = request.POST.get("points")
 
         points = [] if points_raw is None else json.loads(points_raw)
 
         if len(points) == 0:
-            await cls.objects.acreate(
-                image=image,
-                **form.cleaned_data,
-                session=session,
-            )
+            cls.objects.create(image=image, session=session, **kwargs)
         else:
             objs = []
 
@@ -122,10 +109,10 @@ class ClickedCoordinate(FromRequest):
                         session=session,
                         x=point["x"],
                         y=point["y"],
-                        **form.cleaned_data,
+                        **kwargs,
                     )
                 )
-            await sync.sync_to_async(cls.objects.bulk_create)(objs)
+            cls.objects.bulk_create(objs)
 
 
 class Rating(FromRequest):
