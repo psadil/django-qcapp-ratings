@@ -4,120 +4,45 @@
             hx-on::after-request="if(event.detail.successful) this.reset()">
             {% csrf_token %}
 
-            <div class="rating-options">
-                {% for field in form %}
-                {% if field.name == 'rating' %}
-                <div class="mb-4">
-                    <label class="form-label fw-bold">
-                        <i class="fas fa-star me-2"></i>
-                        Quality Rating
-                    </label>
-                    <div class="rating-options">
-                        {% for choice in field %}
-                        <div class="rating-option" onclick="selectRating(this, '{{ choice.choice_value }}')">
-                            {{ choice.tag }}
-                            <label class="rating-label" for="{{ choice.id_for_label }}">
-                                {{ choice.choice_label }}
-                            </label>
-                            {% if choice.choice_value == '0' %}
-                            <span class="status-badge status-pass ms-auto">Pass</span>
-                            {% elif choice.choice_value == '1' %}
-                            <span class="status-badge status-unsure ms-auto">Unsure</span>
-                            {% elif choice.choice_value == '2' %}
-                            <span class="status-badge status-fail ms-auto">Fail</span>
-                            {% endif %}
-                        </div>
-                        {% endfor %}
-                    </div>
-                </div>
-                {% elif field.name == 'source_data_issue' %}
-                <div class="mb-4">
-                    <div class="form-check">
-                        {{ field }}
-                        <label class="form-check-label" for="{{ field.id_for_label }}">
-                            <i class="fas fa-exclamation-triangle me-2"></i>
-                            Source Data Issue
-                        </label>
-                    </div>
-                </div>
-                {% else %}
-                <div class="mb-3">
-                    <label class="form-label fw-bold" for="{{ field.id_for_label }}">
-                        {{ field.label }}
-                    </label>
-                    {{ field }}
-                </div>
-                {% endif %}
+
+            {% for field in form %}
+            {% if field.name == 'rating' %}
+            <div class="btn-group" role="group" aria-label="Basic radio toggle button group">
+                {% for choice in field %}
+                {{ choice.tag }}
+                <label class="btn btn-outline-primary" for="{{ choice.id_for_label }}">
+                    {{ choice.choice_label}}
+                </label>
                 {% endfor %}
             </div>
-
-            <div class="d-grid gap-2">
-                <button type="submit" id="submit" class="btn btn-primary btn-lg">
-                    <i class="fas fa-check me-2"></i>
-                    Submit Rating
-                </button>
+            {% elif field.name == 'source_data_issue' %}
+            <div class="form-check">
+                {{ field }}
+                <label class="form-check-label" for="{{ field.id_for_label }}">
+                    {{ field.label }}
+                </label>
             </div>
-        </form>
+            {% elif field.name == 'comments' %}
+            <div class="form-floating">
+                {{ field }}
+                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+            </div>
+
+            {% else %}
+            {{ field }}
+            <label class="form-label fw-bold" for="{{ field.id_for_label }}">
+                {{ field.label }}
+            </label>
+            {{ field }}
+            {% endif %}
+            {% endfor %}
     </div>
+
+    <div class="d-grid gap-2">
+        <button type="submit" id="submit" class="btn btn-primary btn-lg">
+            <i class="fas fa-check me-2"></i>
+            Submit Rating
+        </button>
+    </div>
+    </form>
 </div>
-
-<script>
-    function selectRating(element, value) {
-        // Remove selected class from all rating options
-        document.querySelectorAll('.rating-option').forEach(option => {
-            option.classList.remove('selected');
-        });
-
-        // Add selected class to clicked option
-        element.classList.add('selected');
-
-        // Set the radio button value
-        const radio = element.querySelector('input[type="radio"]');
-        if (radio) {
-            radio.checked = true;
-        }
-    }
-
-    // Hotkey support for rating selection and submit
-    document.addEventListener('keydown', function (event) {
-        // Only trigger if the form is present
-        const form = document.getElementById('form');
-        if (!form) return;
-
-        // Don't trigger hotkeys if focused on a textarea or input
-        const active = document.activeElement;
-        if (active && (active.tagName === 'TEXTAREA' || (active.tagName === 'INPUT' && active.type !== 'radio'))) {
-            return;
-        }
-
-        // Map hotkeys to rating values
-        const keyMap = {
-            'p': '0', // Pass
-            'u': '1', // Unsure
-            'f': '2'  // Fail
-        };
-        const key = event.key.toLowerCase();
-        if (key in keyMap) {
-            const value = keyMap[key];
-            // Find the corresponding rating option
-            const options = document.querySelectorAll('.rating-option');
-            for (const option of options) {
-                const radio = option.querySelector('input[type="radio"]');
-                if (radio && radio.value === value) {
-                    selectRating(option, value);
-                    // Optionally focus the radio for accessibility
-                    radio.focus();
-                    event.preventDefault();
-                    break;
-                }
-            }
-        } else if (key === 'enter') {
-            // Only submit if a rating is selected
-            const selectedRadio = document.querySelector('.rating-option input[type="radio"]:checked');
-            if (selectedRadio) {
-                form.requestSubmit ? form.requestSubmit() : form.submit();
-                event.preventDefault();
-            }
-        }
-    });
-</script>

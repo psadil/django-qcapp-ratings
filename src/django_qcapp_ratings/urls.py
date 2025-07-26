@@ -1,6 +1,7 @@
 from django.urls import path
 
 from django_qcapp_ratings import views
+from django_qcapp_ratings.api import api
 
 urlpatterns = [
     path("", views.LayoutView.as_view(), name="index"),
@@ -29,4 +30,6 @@ urlpatterns = [
         views.ClickPartial.as_view(),
         name=views.CLICK_PARTIAL,
     ),
+    # API endpoints
+    path("api/", api.urls),
 ]

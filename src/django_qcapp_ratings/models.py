@@ -73,46 +73,45 @@ class FromRequest(models.Model):
     )
     created = models.DateTimeField(auto_now_add=True)
 
-    @classmethod
-    def from_request_form(cls, request: http.HttpRequest, **kwargs) -> None:
-        image = shortcuts.get_object_or_404(Image, pk=request.session.get("image_id"))
-        session = shortcuts.get_object_or_404(
+    def add_request_args(self, request: http.HttpRequest) -> None:
+        self.image = shortcuts.get_object_or_404(
+            Image, pk=request.session.get("image_id")
+        )
+        self.session = shortcuts.get_object_or_404(
             Session, pk=request.session.get("session_id")
         )
 
-        cls.objects.create(image=image, session=session, **kwargs)
+    def update_instance_and_save(self, request: http.HttpRequest) -> None:
+        self.add_request_args(request)
+        self.save()
 
 
 class ClickedCoordinate(FromRequest):
     x = models.FloatField(null=True)
     y = models.FloatField(null=True)
 
-    @classmethod
-    def from_request_form(cls, request: http.HttpRequest, **kwargs) -> None:
-        image = shortcuts.get_object_or_404(Image, pk=request.session.get("image_id"))
-        session = shortcuts.get_object_or_404(
-            Session, pk=request.session.get("session_id")
-        )
+    def update_instance_and_save(self, request: http.HttpRequest) -> None:
+        self.add_request_args(request)
         points_raw = request.POST.get("points")
 
         points = [] if points_raw is None else json.loads(points_raw)
 
         if len(points) == 0:
-            cls.objects.create(image=image, session=session, **kwargs)
+            self.save()
         else:
+            common_fields = {}
+            for field in self._meta.get_fields():
+                if (
+                    field.concrete
+                    and not field.auto_created
+                    and field.name != "id"
+                    and field.name != "pk"
+                ):
+                    common_fields.update({field.name: getattr(self, field.name)})
             objs = []
-
             for point in points:
-                objs.append(
-                    cls(
-                        image=image,
-                        session=session,
-                        x=point["x"],
-                        y=point["y"],
-                        **kwargs,
-                    )
-                )
-            cls.objects.bulk_create(objs)
+                objs.append(self.__class__(**{**common_fields, **point}))
+            self.__class__.objects.bulk_create(objs)
 
 
 class Rating(FromRequest):

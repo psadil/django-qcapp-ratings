@@ -49,7 +49,7 @@ class ClickPartial(RatePartial):
 class RateView(abc.ABC, edit.CreateView):
     template_name = "rate.html"
     form_class = forms.RatingForm
-    success_url = f"/{RATE_PARTIAL}/"
+    success_url: str = f"/{RATE_PARTIAL}/"  # type: ignore
 
     @property
     @abc.abstractmethod
@@ -69,12 +69,13 @@ class RateView(abc.ABC, edit.CreateView):
         form = self.get_form()
         if form.is_valid():
             logging.info("saving rating")
-            self.form_class.Meta.model.from_request_form(  # type: ignore
-                request=request, **form.cleaned_data
-            )
+            saved: models.FromRequest = form.save(commit=False)
+            if not isinstance(saved, models.FromRequest):
+                raise http.Http404("Form field not expected type")
+            saved.update_instance_and_save(request=request)
 
             # call this instead of form_valid because the model has already been saved
-            return http.HttpResponseRedirect(self.success_url)  # type: ignore
+            return http.HttpResponseRedirect(self.success_url)
 
         raise http.Http404("Submitted invalid rating")
 
