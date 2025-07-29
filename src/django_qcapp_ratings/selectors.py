@@ -9,7 +9,7 @@ from django.db import models as dm
 
 from django_qcapp_ratings import models
 
-TASK_TIMEOUT_SEC = 10
+TASK_TIMEOUT_SEC = 30
 
 
 @dataclasses.dataclass
