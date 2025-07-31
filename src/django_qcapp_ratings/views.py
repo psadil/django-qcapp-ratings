@@ -136,7 +136,7 @@ class LayoutView(edit.FormView):
                 raise http.Http404("Unknown step")
 
     def form_valid(self, form: forms.IndexForm):
-        form.instance.user = self.request.COOKIES.get("X-Tapis-Username")
+        form.instance.user = self.request.headers.get("X-Tapis-Username")
         session = form.save()
         self.request.session["session_id"] = session.pk
         self.request.session["step"] = session.step
