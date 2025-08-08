@@ -26,6 +26,9 @@ class Command(TyperCommand):
                 shell_complete=path.paths,
             ),
         ],
+        update: t.Annotated[
+            bool, typer.Option(help="Whether to update img in database")
+        ] = False,
     ):
         """
         Add surface localization figures
@@ -33,29 +36,47 @@ class Command(TyperCommand):
 
         for fa in subjects_dir.rglob("*dwi_FA.nii.gz"):
             logging.info(f"{fa=}")
-            if models.Image.objects.filter(
-                display=models.DisplayMode.Z, step=models.Step.DTIFIT, file1=fa.name
-            ).exists():
-                logging.info("Found object. Skipping")
-                continue
-
-            i = _private.get_dtifit(
-                nii=nb.nifti1.Nifti1Image.load(fa),
-                v1=nb.nifti1.Nifti1Image.load(
-                    fa.with_name(fa.name.replace("FA", "V1"))
-                ),
-                v2=nb.nifti1.Nifti1Image.load(
-                    fa.with_name(fa.name.replace("FA", "V2"))
-                ),
-                v3=nb.nifti1.Nifti1Image.load(
-                    fa.with_name(fa.name.replace("FA", "V3"))
-                ),
-            )
-            asyncio.run(
-                models.Image.objects.acreate(
-                    img=i,
-                    display=models.DisplayMode.Z,
-                    step=models.Step.DTIFIT,
-                    file1=fa.name,
+            if (
+                image := models.Image.objects.filter(
+                    display=models.DisplayMode.Z, step=models.Step.DTIFIT, file1=fa.name
                 )
-            )
+            ).exists():
+                if not update:
+                    logging.info("Found object. Skipping")
+                    continue
+                else:
+                    i = _private.get_dtifit(
+                        nii=nb.nifti1.Nifti1Image.load(fa),
+                        v1=nb.nifti1.Nifti1Image.load(
+                            fa.with_name(fa.name.replace("FA", "V1"))
+                        ),
+                        v2=nb.nifti1.Nifti1Image.load(
+                            fa.with_name(fa.name.replace("FA", "V2"))
+                        ),
+                        v3=nb.nifti1.Nifti1Image.load(
+                            fa.with_name(fa.name.replace("FA", "V3"))
+                        ),
+                    )
+                    asyncio.run(image.aupdate(img=i))
+
+            else:
+                i = _private.get_dtifit(
+                    nii=nb.nifti1.Nifti1Image.load(fa),
+                    v1=nb.nifti1.Nifti1Image.load(
+                        fa.with_name(fa.name.replace("FA", "V1"))
+                    ),
+                    v2=nb.nifti1.Nifti1Image.load(
+                        fa.with_name(fa.name.replace("FA", "V2"))
+                    ),
+                    v3=nb.nifti1.Nifti1Image.load(
+                        fa.with_name(fa.name.replace("FA", "V3"))
+                    ),
+                )
+                asyncio.run(
+                    models.Image.objects.acreate(
+                        img=i,
+                        display=models.DisplayMode.Z,
+                        step=models.Step.DTIFIT,
+                        file1=fa.name,
+                    )
+                )
