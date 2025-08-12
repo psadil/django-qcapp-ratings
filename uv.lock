@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.12"
 
 [[package]]
@@ -530,6 +530,7 @@ manage = [
     { name = "neurorm" },
     { name = "nibabel" },
     { name = "nilearn" },
+    { name = "nitransforms" },
     { name = "numpy" },
     { name = "polars" },
     { name = "pygifsicle" },
@@ -557,6 +558,7 @@ manage = [
     { name = "neurorm", git = "https://github.com/psadil/neurorm.git" },
     { name = "nibabel", specifier = ">=5.3.2" },
     { name = "nilearn", specifier = ">=0.12.0" },
+    { name = "nitransforms", specifier = ">=25.0.0" },
     { name = "numpy", specifier = ">=2.3.1" },
     { name = "polars", specifier = ">=1.31.0" },
     { name = "pygifsicle", specifier = ">=1.1.0" },
@@ -1446,6 +1448,21 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/7c/bf/71980e4d21fd985653526acbf179a98fb007118cb93b8bc9fb182861f691/nilearn-0.12.0.tar.gz", hash = "sha256:8fe53f117c87872bef6b93de7a383a1c70f182dbd186459a6594e6c9d70574a6", size = 25950358, upload-time = "2025-06-21T07:14:49.054Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a7/97/7db1c7ed4b8fbe25e1e74135f7b6ee0b4563e1f53a55297d56a4c5286ded/nilearn-0.12.0-py3-none-any.whl", hash = "sha256:2818ffa26dd7325c60f0569d521c7d87defe5847b6ded83031e6c687f283bf41", size = 10566923, upload-time = "2025-06-21T07:14:32.69Z" },
+]
+
+[[package]]
+name = "nitransforms"
+version = "25.0.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "h5py" },
+    { name = "nibabel" },
+    { name = "numpy" },
+    { name = "scipy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/a0/32/c6fb02cc334b5a5e3889dcc330c824351f2e719704edcd7dd4c2a974c219/nitransforms-25.0.0.tar.gz", hash = "sha256:6c6cab17207ca63137ccbca641359774f014c43a29150749d34690b3394ea798", size = 30091253, upload-time = "2025-07-22T14:26:42.936Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/78/eb/9ccd8b7e57133544dcaa11cbd28c8d82a7dd78528b373a7f556ca81a8ceb/nitransforms-25.0.0-py3-none-any.whl", hash = "sha256:65feeff148563da0d1040aa3752ccf1a21ef742c23e928d35a08be045d92fca3", size = 18557153, upload-time = "2025-07-22T14:26:39.694Z" },
 ]
 
 [[package]]

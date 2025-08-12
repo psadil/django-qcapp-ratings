@@ -5,10 +5,12 @@ import typing as t
 from pathlib import Path
 
 import nibabel as nb
+import nitransforms as nt
 import polars as pl
 import typer
 from django_typer.completers import path
 from django_typer.management import TyperCommand
+from nibabel import spatialimages
 
 from django_qcapp_ratings import models
 
@@ -28,6 +30,9 @@ class Command(TyperCommand):
                 shell_complete=path.paths,
             ),
         ],
+        update: t.Annotated[
+            bool, typer.Option(help="Whether to update img in database")
+        ] = False,
     ):
         """
         Add Masks from BIDS Table
@@ -59,22 +64,35 @@ class Command(TyperCommand):
                     / f"sub-{fieldmap.get('sub')}"
                     / i.replace("_bold", "_desc-coreg_boldref")
                 )
-
-                mask_nii = nb.nifti1.Nifti1Image.load(mask)
-                file_nii = nb.nifti1.Nifti1Image.load(boldref)
+                transform = nt.linear.load(
+                    boldref.parent
+                    / boldref.name.replace(
+                        "desc-coreg_boldref.nii.gz",
+                        "from-boldref_to-auto00001_mode-image_xfm.txt",
+                    )
+                )
+                mask_nii: spatialimages.SpatialImage = nt.resampling.apply(
+                    transform, spatialimage=mask, reference=file2_nii
+                )  # type: ignore
+                file_nii: spatialimages.SpatialImage = nt.resampling.apply(
+                    transform, spatialimage=boldref, reference=file2_nii
+                )  # type: ignore
                 file1 = boldref.name
                 for display_mode in models.DisplayMode.choices:
                     logging.info(f"{display_mode=}")
                     for cut in range(_private.N_CUTS):
                         logging.info(f"{cut=}")
-                        if models.Image.objects.filter(
+                        image = models.Image.objects.filter(
                             slice=cut,
                             display=display_mode[0],
                             step=models.Step.FMAP_COREGISTRATION,
                             file1=file1,
-                        ).exists():
-                            logging.info("Found object. Skipping")
-                            continue
+                        )
+                        if image.exists():
+                            if not update:
+                                logging.info("Found object. Skipping.")
+                                continue
+                            logging.info("Found object. Updating.")
 
                         i = _private.get_fmap_coregistration(
                             cut=cut,
@@ -83,13 +101,16 @@ class Command(TyperCommand):
                             file_nii=file_nii,
                             file2_nii=file2_nii,
                         )
-                        asyncio.run(
-                            models.Image.objects.acreate(
-                                img=i,
-                                slice=cut,
-                                display=display_mode[0],
-                                step=models.Step.FMAP_COREGISTRATION,
-                                file1=file1,
-                                file2=file2.name,
+                        if image.exists():
+                            asyncio.run(image.aupdate(img=i))
+                        else:
+                            asyncio.run(
+                                models.Image.objects.acreate(
+                                    img=i,
+                                    slice=cut,
+                                    display=display_mode[0],
+                                    step=models.Step.FMAP_COREGISTRATION,
+                                    file1=file1,
+                                    file2=file2.name,
+                                )
                             )
-                        )

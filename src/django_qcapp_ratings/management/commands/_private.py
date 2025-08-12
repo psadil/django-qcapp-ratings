@@ -15,6 +15,7 @@ import polars as pl
 import pygifsicle
 from dipy.reconst import dti
 from matplotlib import pyplot as plt
+from nibabel import spatialimages
 from nilearn import image, plotting
 from nilearn.plotting import displays
 from scipy import ndimage
@@ -30,7 +31,7 @@ SPATIAL_NORMALIZATION_CUTS = {
 
 
 def cuts_from_bbox_ijk(
-    mask_nii: nb.nifti1.Nifti1Image, cuts: int = 7
+    mask_nii: spatialimages.SpatialImage, cuts: int = 7
 ) -> npt.NDArray[np.float32]:
     """Find equi-spaced cuts for presenting images."""
     if mask_nii.affine is None:
@@ -79,7 +80,7 @@ def cuts_from_bbox_ijk(
 
 
 def cuts_from_bbox(
-    mask_nii: nb.nifti1.Nifti1Image, cuts: int = 7
+    mask_nii: spatialimages.SpatialImage, cuts: int = 7
 ) -> dict[models.DisplayMode, list[float]]:
     if mask_nii.affine is None:
         raise ValueError("nifti must have affine")
@@ -235,14 +236,40 @@ async def merge_imgs(imgs: typing.Sequence[models.Image]) -> None:
         )
 
 
+def rotation2canonical(img):
+    """Calculate the rotation w.r.t. cardinal axes of input image."""
+    img = nb.funcs.as_closest_canonical(img)
+    newaff = np.diag(img.header.get_zooms()[:3])
+    r = newaff @ np.linalg.pinv(img.affine[:3, :3])
+    if np.allclose(r, np.eye(3)):
+        return None
+    return r
+
+
+def rotate_affine(img, rot=None):
+    """Rewrite the affine of a spatial image."""
+    if rot is None:
+        return img
+
+    img = nb.funcs.as_closest_canonical(img)
+    affine = np.eye(4)
+    affine[:3] = rot @ img.affine[:3]
+    return img.__class__(img.dataobj, affine, img.header)
+
+
 def get_fmap_coregistration(
     cut: int,
-    mask_nii: nb.nifti1.Nifti1Image,
-    file_nii: nb.nifti1.Nifti1Image,
-    file2_nii: nb.nifti1.Nifti1Image,
+    mask_nii: spatialimages.SpatialImage,
+    file_nii: spatialimages.SpatialImage,
+    file2_nii: spatialimages.SpatialImage,
     display_mode: models.DisplayMode = models.DisplayMode(models.DisplayMode.X),
     figsize: tuple[float, float] = (6.4, 4.8),
 ) -> bytes:
+    canonical_r = rotation2canonical(file2_nii)
+    file2_nii = rotate_affine(file2_nii)
+    file_nii = rotate_affine(file_nii, rot=canonical_r)
+    mask_nii = rotate_affine(mask_nii, rot=canonical_r)
+
     cuts = cuts_from_bbox(mask_nii, cuts=N_CUTS).get(display_mode)
     if cuts is None:
         raise ValueError("Misaglinged Display Mode")
@@ -260,7 +287,7 @@ def get_fmap_coregistration(
                 vmax=np.quantile(file_nii.get_fdata(), 0.998),
                 vmin=np.quantile(file_nii.get_fdata(), 0.15),
                 colorbar=False,
-                title="func/boldref",
+                title="fmap/epi",
             )  # type: ignore
             try:
                 p.add_contours(mask_nii, levels=[0.5], colors="g", transparency=0.5)
@@ -278,7 +305,7 @@ def get_fmap_coregistration(
                 vmax=np.quantile(file2_nii.get_fdata(), 0.998),
                 vmin=np.quantile(file2_nii.get_fdata(), 0.15),
                 colorbar=False,
-                title="fmap/epi",
+                title="func/boldref",
             )  # type: ignore
             try:
                 p.add_contours(mask_nii, levels=[0.5], colors="g", transparency=0.5)
