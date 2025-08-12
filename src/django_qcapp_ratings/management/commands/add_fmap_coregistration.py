@@ -69,13 +69,19 @@ class Command(TyperCommand):
                     / boldref.name.replace(
                         "desc-coreg_boldref.nii.gz",
                         "from-boldref_to-auto00001_mode-image_xfm.txt",
-                    )
+                    ),
+                    reference=file2_nii,
                 )
                 mask_nii: spatialimages.SpatialImage = nt.resampling.apply(
-                    transform, spatialimage=mask, reference=file2_nii
+                    transform, spatialimage=mask, order=0
                 )  # type: ignore
+                # sometimes, the boldref is stored as a 4d image (even though
+                # the fourth dimension has only length 1)
+                boldref_nii = nb.funcs.squeeze_image(
+                    nb.nifti1.Nifti1Image.load(boldref)
+                )
                 file_nii: spatialimages.SpatialImage = nt.resampling.apply(
-                    transform, spatialimage=boldref, reference=file2_nii
+                    transform, spatialimage=boldref_nii
                 )  # type: ignore
                 file1 = boldref.name
                 for display_mode in models.DisplayMode.choices:
