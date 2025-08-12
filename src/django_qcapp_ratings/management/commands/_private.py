@@ -287,7 +287,7 @@ def get_fmap_coregistration(
                 vmax=np.quantile(file_nii.get_fdata(), 0.998),
                 vmin=np.quantile(file_nii.get_fdata(), 0.15),
                 colorbar=False,
-                title="fmap/epi",
+                title="func/boldref",
             )  # type: ignore
             try:
                 p.add_contours(mask_nii, levels=[0.5], colors="g", transparency=0.5)
@@ -305,7 +305,7 @@ def get_fmap_coregistration(
                 vmax=np.quantile(file2_nii.get_fdata(), 0.998),
                 vmin=np.quantile(file2_nii.get_fdata(), 0.15),
                 colorbar=False,
-                title="func/boldref",
+                title="fmap/epi",
             )  # type: ignore
             try:
                 p.add_contours(mask_nii, levels=[0.5], colors="g", transparency=0.5)
