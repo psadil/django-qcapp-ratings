@@ -64,14 +64,14 @@ class Command(TyperCommand):
                     / f"sub-{fieldmap.get('sub')}"
                     / i.replace("_bold", "_desc-coreg_boldref")
                 )
-                transform = nt.linear.load(
-                    boldref.parent
-                    / boldref.name.replace(
-                        "desc-coreg_boldref.nii.gz",
-                        "from-boldref_to-auto00001_mode-image_xfm.txt",
-                    ),
-                    reference=file2_nii,
+                transform_file = boldref.parent / boldref.name.replace(
+                    "desc-coreg_boldref.nii.gz",
+                    "from-boldref_to-auto00001_mode-image_xfm.txt",
                 )
+                if not (mask.exists() and boldref.exists() and transform_file.exists()):
+                    logging.info("missing file. skipping.")
+                    continue
+                transform = nt.linear.load(transform_file, reference=file2_nii)
                 mask_nii: spatialimages.SpatialImage = nt.resampling.apply(
                     transform, spatialimage=mask, order=0
                 )  # type: ignore
