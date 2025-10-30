@@ -65,13 +65,36 @@ async def get_img_id(request: http.HttpRequest) -> ImageResult:
 
 
 async def get_image_with_fewest_ratings(
-    step: models.Step, key: str = "source_data_issue"
+    step: models.Step, last_pk: int | None = None, key: str = "source_data_issue"
 ) -> models.Image:
     related = get_related_from_step(step)
+
+    # select scan with fewest ratings
+    scan_query = models.Image.objects.filter(step=step.value)
+    if last_pk is not None:
+        # get file1 from previous image
+        last_img_q = (
+            await models.Image.objects.filter(pk=last_pk).values("file1").afirst()
+        )
+        if last_img_q is None:
+            raise ValueError("Unable to find file1 of last img")
+        scan_query = scan_query.exclude(file1__in=[last_img_q.get("file1")])
+    file1 = await (
+        scan_query.values("file1")
+        .annotate(n_ratings=dm.Count(f"{related}__{key}"))
+        .order_by("n_ratings")
+        .afirst()
+    )
+    if file1 is None:
+        raise ValueError("No scan found")
+
+    # select image from scan with fewest ratings
+    image_query = models.Image.objects.filter(file1=file1.get("file1"))
+    if last_pk is not None:
+        image_query = image_query.exclude(id__in=[last_pk])
+
     image = await (
-        models.Image.objects.filter(step=step.value)
-        .select_related(related)
-        .values("id")
+        image_query.values("id")
         .annotate(n_ratings=dm.Count(f"{related}__{key}"))
         .order_by("n_ratings")
         .afirst()
@@ -79,24 +102,4 @@ async def get_image_with_fewest_ratings(
     if image is None:
         raise ValueError("No image found")
 
-    return await models.Image.objects.aget(pk=image.get("id"))
-
-
-async def get_image_pk_with_fewest_ratings(
-    step: models.Step, last_pk: int, key: str = "source_data_issue"
-) -> models.Image:
-    related = get_related_from_step(step)
-    image = await (
-        models.Image.objects.filter(step=step.value)
-        .exclude(id__in=[last_pk])
-        .select_related(related)
-        .values("id")
-        .annotate(n_ratings=dm.Count(f"{related}__{key}"))
-        .order_by("n_ratings")
-        .afirst()
-    )
-    if image is None:
-        raise ValueError("No image found")
-
-    logging.info("starting to load the image from db")
     return await models.Image.objects.aget(pk=image.get("id"))
