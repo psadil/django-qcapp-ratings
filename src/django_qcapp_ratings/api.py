@@ -1,8 +1,9 @@
 import base64
 
+import ninja
 import orjson
 from django import http, shortcuts
-from ninja import FilterSchema, ModelSchema, NinjaAPI, Query, Schema, parser, renderers
+from ninja import Schema, parser, renderers
 
 from django_qcapp_ratings import models
 
@@ -20,7 +21,7 @@ class ORJSONRenderer(renderers.BaseRenderer):
 
 
 # API instance
-api = NinjaAPI(
+api = ninja.NinjaAPI(
     title="QC App Ratings API",
     version="1.0.0",
     renderer=ORJSONRenderer(),
@@ -28,7 +29,7 @@ api = NinjaAPI(
 )
 
 
-class ImageSchema(ModelSchema):
+class ImageSchema(ninja.ModelSchema):
     img: str
 
     class Meta:
@@ -37,7 +38,7 @@ class ImageSchema(ModelSchema):
         fields_optional = ["created", "slice", "file2", "display", "step"]
 
 
-class ImageResponseSchema(ModelSchema):
+class ImageResponseSchema(ninja.ModelSchema):
     img: str
 
     class Meta:
@@ -50,8 +51,17 @@ class DeleteResponseSchema(Schema):
     message: str
 
 
-class StepFilter(FilterSchema):
+class StepFilter(ninja.FilterSchema):
     name: models.Step | None = None
+
+
+class RatingSchema(ninja.ModelSchema):
+    session_user: str | None = ninja.Field(None, alias="session.user")
+    image_id: int = ninja.Field(..., alias="image.id")
+
+    class Meta:
+        model = models.Rating
+        fields = ["id", "rating", "source_data_issue", "created_at"]
 
 
 # Endpoints
@@ -62,7 +72,7 @@ def create_image(request: http.HttpRequest, payload: ImageSchema):
     return {"id": image.pk, "created": image.created}
 
 
-@api.delete("/image/{image_id}/", response=DeleteResponseSchema)
+@api.delete("/image/{int:image_id}/", response=DeleteResponseSchema)
 def delete_image(request: http.HttpRequest, image_id: int):
     """Delete a single image by ID"""
     image = shortcuts.get_object_or_404(models.Image, id=image_id)
@@ -73,7 +83,7 @@ def delete_image(request: http.HttpRequest, image_id: int):
 @api.get("/images/", response=list[ImageSchema])
 def list_images(
     request: http.HttpRequest,
-    filters: StepFilter = Query(...),  # type: ignore
+    filters: StepFilter = ninja.Query(...),  # type: ignore
     limit: int = 100,
 ):
     """List images with optional filtering by step"""
@@ -94,7 +104,7 @@ def list_images(
     ]
 
 
-@api.get("/image/{image_id}/", response=ImageSchema)
+@api.get("/image/{int:image_id}/", response=ImageSchema)
 def get_image(request: http.HttpRequest, image_id: int):
     """Get a single image by ID"""
     image = shortcuts.get_object_or_404(models.Image, id=image_id)
@@ -108,3 +118,21 @@ def get_image(request: http.HttpRequest, image_id: int):
         "created": image.created,
         "img": base64.b64encode(image.img).decode(),
     }
+
+
+@api.get("/ratings/", response=list[RatingSchema])
+def list_ratings(request: http.HttpRequest):
+    """List all ratings"""
+    return (
+        models.Rating.objects.all()
+        .select_related("session", "image")
+        .values(
+            "id",
+            "session_id",
+            "session__user",
+            "image_id",
+            "rating",
+            "source_data_issue",
+            "created_at",
+        )
+    )
