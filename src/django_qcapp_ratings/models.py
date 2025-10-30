@@ -1,3 +1,4 @@
+import base64
 import json
 import random
 import typing
@@ -54,6 +55,18 @@ class Image(models.Model):
 
     def to_dict(self) -> dict[str, typing.Any]:
         return {"id": self.pk, "step": self.step, "img": self.img}
+
+    def to_serializable(self) -> dict[str, typing.Any]:
+        return {
+            "id": self.pk,
+            "slice": self.slice,
+            "file1": self.file1,
+            "file2": self.file2,
+            "display": self.display,
+            "step": self.step,
+            "created": self.created,
+            "img": base64.b64encode(self.img).decode(),
+        }
 
 
 class FromRequest(models.Model):
