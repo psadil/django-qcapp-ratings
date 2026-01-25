@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import typing as t
 from pathlib import Path
@@ -57,8 +56,14 @@ class Command(TyperCommand):
                 logging.info(f"{display_mode=}")
                 for cut in range(3):
                     logging.info(f"{cut=}")
+                    i = _private.get_spatial_normalization(
+                        cut=cut,
+                        display_mode=models.DisplayMode(display_mode[0]),
+                        file_nii=file_nii,
+                    )
+
                     if (
-                        i := models.Image.objects.filter(
+                        image := models.Image.objects.filter(
                             slice=cut,
                             display=display_mode[0],
                             step=models.Step.SPATIAL_NORMALIZATION,
@@ -69,18 +74,12 @@ class Command(TyperCommand):
                             logging.info("Found object. Skipping")
                             continue
                         else:
-                            i.delete()
-                    i = _private.get_spatial_normalization(
-                        cut=cut,
-                        display_mode=models.DisplayMode(display_mode[0]),
-                        file_nii=file_nii,
-                    )
-                    asyncio.run(
-                        models.Image.objects.acreate(
+                            image.update(img=i)
+                    else:
+                        models.Image.objects.create(
                             img=i,
                             slice=cut,
                             display=display_mode[0],
                             step=models.Step.SPATIAL_NORMALIZATION,
                             file1=file1,
                         )
-                    )

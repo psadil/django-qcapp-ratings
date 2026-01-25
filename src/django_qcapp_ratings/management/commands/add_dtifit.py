@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import typing as t
 from pathlib import Path
@@ -57,7 +56,7 @@ class Command(TyperCommand):
                             fa.with_name(fa.name.replace("FA", "V3"))
                         ),
                     )
-                    asyncio.run(image.aupdate(img=i))
+                    image.update(img=i)
 
             else:
                 i = _private.get_dtifit(
@@ -72,11 +71,9 @@ class Command(TyperCommand):
                         fa.with_name(fa.name.replace("FA", "V3"))
                     ),
                 )
-                asyncio.run(
-                    models.Image.objects.acreate(
-                        img=i,
-                        display=models.DisplayMode.Z,
-                        step=models.Step.DTIFIT,
-                        file1=fa.name,
-                    )
+                models.Image.objects.create(
+                    img=i,
+                    display=models.DisplayMode.Z,
+                    step=models.Step.DTIFIT,
+                    file1=fa.name,
                 )
