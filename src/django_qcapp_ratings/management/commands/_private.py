@@ -1,18 +1,14 @@
 import io
 import logging
 import tempfile
-import time
 import typing
-from datetime import datetime
 from pathlib import Path
-from wsgiref import handlers
 
 import imageio.v3 as iio
 import nibabel as nb
 import numpy as np
 import numpy.typing as npt
 import polars as pl
-import pygifsicle
 from dipy.reconst import dti
 from matplotlib import pyplot as plt
 from nibabel import spatialimages
@@ -98,14 +94,13 @@ def cuts_from_bbox(
 
 
 def _savefig(p: displays.OrthoSlicer, dst: io.BytesIO) -> None:
-    now = datetime.now()
-    stamp = time.mktime(now.timetuple())
-    p.savefig(
-        dst,
-        metadata={"Creation Time": handlers.format_date_time(stamp)},
-        backend="Agg",
-        pil_kwargs={"compress_level": 9},
-    )
+    p.savefig(dst, format="webp")
+
+
+def _save_animation(frames: np.ndarray, duration: int = 200) -> bytes:
+    with io.BytesIO() as img:
+        iio.imwrite(img, frames, extension=".webp", save_all=True, duration=duration)
+        return img.getvalue()
 
 
 def get_mask(
@@ -321,10 +316,7 @@ def get_fmap_coregistration(
                 ],
                 axis=0,
             )
-        with tempfile.NamedTemporaryFile(suffix=".gif") as tf:
-            iio.imwrite(tf.name, frames, loop=0, duration=300, optimize=True)
-            pygifsicle.optimize(tf.name)
-            return tf.read()
+        return _save_animation(frames, duration=300)
 
 
 def get_dtifit(
@@ -362,7 +354,4 @@ def get_dtifit(
 
         frames = np.stack([iio.imread(img) for img in images + images[-2:1:-1]], axis=0)
 
-    with tempfile.NamedTemporaryFile(suffix=".gif") as tf:
-        iio.imwrite(tf.name, frames, loop=0, duration=200)
-        pygifsicle.optimize(tf.name)
-        return tf.read()
+        return _save_animation(frames, duration=200)

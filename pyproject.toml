@@ -29,8 +29,23 @@ manage = [
     "nitransforms>=25.0.0",
     "numpy>=2.3.1",
     "polars>=1.31.0",
-    "pygifsicle>=1.1.0",
 ]
 
-[tool.uv.sources]
+
+[tool.pixi.workspace]
+channels = ["conda-forge"]
+platforms = ["osx-arm64", "linux-64"]
+
+[tool.pixi.pypi-dependencies]
+django-qcapp-ratings = { path = ".", editable = true }
 neurorm = { git = "https://github.com/psadil/neurorm.git" }
+
+[tool.pixi.environments]
+default = { solve-group = "default" }
+dev = { features = ["dev"], solve-group = "default" }
+manage = { features = ["manage"], solve-group = "default" }
+
+[tool.pixi.tasks]
+
+[tool.pixi.feature.manage.dependencies]
+jupyter = ">=1.1.1,<2"
