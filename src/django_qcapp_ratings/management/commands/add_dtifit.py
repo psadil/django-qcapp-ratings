@@ -35,6 +35,18 @@ class Command(TyperCommand):
 
         for fa in subjects_dir.rglob("*dwi_FA.nii.gz"):
             logging.info(f"{fa=}")
+            i = _private.get_dtifit(
+                nii=nb.nifti1.Nifti1Image.load(fa),
+                v1=nb.nifti1.Nifti1Image.load(
+                    fa.with_name(fa.name.replace("FA", "V1"))
+                ),
+                v2=nb.nifti1.Nifti1Image.load(
+                    fa.with_name(fa.name.replace("FA", "V2"))
+                ),
+                v3=nb.nifti1.Nifti1Image.load(
+                    fa.with_name(fa.name.replace("FA", "V3"))
+                ),
+            )
             if (
                 image := models.Image.objects.filter(
                     display=models.DisplayMode.Z, step=models.Step.DTIFIT, file1=fa.name
@@ -45,33 +57,9 @@ class Command(TyperCommand):
                     continue
                 else:
                     logging.info("Found object. Updating")
-                    i = _private.get_dtifit(
-                        nii=nb.nifti1.Nifti1Image.load(fa),
-                        v1=nb.nifti1.Nifti1Image.load(
-                            fa.with_name(fa.name.replace("FA", "V1"))
-                        ),
-                        v2=nb.nifti1.Nifti1Image.load(
-                            fa.with_name(fa.name.replace("FA", "V2"))
-                        ),
-                        v3=nb.nifti1.Nifti1Image.load(
-                            fa.with_name(fa.name.replace("FA", "V3"))
-                        ),
-                    )
                     image.update(img=i)
 
             else:
-                i = _private.get_dtifit(
-                    nii=nb.nifti1.Nifti1Image.load(fa),
-                    v1=nb.nifti1.Nifti1Image.load(
-                        fa.with_name(fa.name.replace("FA", "V1"))
-                    ),
-                    v2=nb.nifti1.Nifti1Image.load(
-                        fa.with_name(fa.name.replace("FA", "V2"))
-                    ),
-                    v3=nb.nifti1.Nifti1Image.load(
-                        fa.with_name(fa.name.replace("FA", "V3"))
-                    ),
-                )
                 models.Image.objects.create(
                     img=i,
                     display=models.DisplayMode.Z,
