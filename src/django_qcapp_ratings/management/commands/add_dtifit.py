@@ -44,6 +44,7 @@ class Command(TyperCommand):
                     logging.info("Found object. Skipping")
                     continue
                 else:
+                    logging.info("Found object. Updating")
                     i = _private.get_dtifit(
                         nii=nb.nifti1.Nifti1Image.load(fa),
                         v1=nb.nifti1.Nifti1Image.load(

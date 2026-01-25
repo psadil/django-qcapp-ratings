@@ -107,6 +107,7 @@ class Command(TyperCommand):
                             file2_nii=file2_nii,
                         )
                         if image.exists():
+                            logging.info("Found object. Updating")
                             image.update(img=i)
                         else:
                             models.Image.objects.create(

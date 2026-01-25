@@ -72,8 +72,8 @@ class Command(TyperCommand):
                     ).exists():
                         if not update:
                             logging.info("Found object. Skipping")
-                            continue
                         else:
+                            logging.info("Found object. Updating")
                             image.update(img=i)
                     else:
                         models.Image.objects.create(
