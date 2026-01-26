@@ -10,4 +10,6 @@ wheels/
 .venv
 
 # niftis
-tools/*.nii.gz
+tools/*.nii.gz# pixi environments
+.pixi/*
+!.pixi/config.toml

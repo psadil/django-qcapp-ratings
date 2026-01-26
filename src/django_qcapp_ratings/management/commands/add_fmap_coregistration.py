@@ -1,4 +1,3 @@
-import asyncio
 import json
 import logging
 import typing as t
@@ -108,15 +107,14 @@ class Command(TyperCommand):
                             file2_nii=file2_nii,
                         )
                         if image.exists():
-                            asyncio.run(image.aupdate(img=i))
+                            logging.info("Found object. Updating")
+                            image.update(img=i)
                         else:
-                            asyncio.run(
-                                models.Image.objects.acreate(
-                                    img=i,
-                                    slice=cut,
-                                    display=display_mode[0],
-                                    step=models.Step.FMAP_COREGISTRATION,
-                                    file1=file1,
-                                    file2=file2.name,
-                                )
+                            models.Image.objects.create(
+                                img=i,
+                                slice=cut,
+                                display=display_mode[0],
+                                step=models.Step.FMAP_COREGISTRATION,
+                                file1=file1,
+                                file2=file2.name,
                             )

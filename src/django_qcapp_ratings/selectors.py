@@ -19,21 +19,6 @@ class ImageResult:
     img: bytes
 
     @property
-    def img_type(self) -> str:
-        match self.step:
-            case (
-                models.Step.MASK
-                | models.Step.SPATIAL_NORMALIZATION
-                | models.Step.SURFACE_LOCALIZATION
-            ):
-                related = "png"
-            case models.Step.FMAP_COREGISTRATION | models.Step.DTIFIT:
-                related = "gif"
-            case _:
-                raise AssertionError("Unknown step")
-        return related
-
-    @property
     def img_decoded(self) -> str:
         return base64.b64encode(self.img).decode()
 

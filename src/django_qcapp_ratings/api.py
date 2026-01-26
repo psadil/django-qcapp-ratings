@@ -61,7 +61,7 @@ class RatingSchema(ninja.ModelSchema):
 
     class Meta:
         model = models.Rating
-        fields = ["id", "rating", "source_data_issue", "created_at"]
+        fields = ["id", "rating", "source_data_issue", "created"]
 
 
 # Endpoints
@@ -133,6 +133,6 @@ def list_ratings(request: http.HttpRequest):
             "image_id",
             "rating",
             "source_data_issue",
-            "created_at",
+            "created",
         )
     )

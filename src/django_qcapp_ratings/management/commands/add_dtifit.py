@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import typing as t
 from pathlib import Path
@@ -36,6 +35,18 @@ class Command(TyperCommand):
 
         for fa in subjects_dir.rglob("*dwi_FA.nii.gz"):
             logging.info(f"{fa=}")
+            i = _private.get_dtifit(
+                nii=nb.nifti1.Nifti1Image.load(fa),
+                v1=nb.nifti1.Nifti1Image.load(
+                    fa.with_name(fa.name.replace("FA", "V1"))
+                ),
+                v2=nb.nifti1.Nifti1Image.load(
+                    fa.with_name(fa.name.replace("FA", "V2"))
+                ),
+                v3=nb.nifti1.Nifti1Image.load(
+                    fa.with_name(fa.name.replace("FA", "V3"))
+                ),
+            )
             if (
                 image := models.Image.objects.filter(
                     display=models.DisplayMode.Z, step=models.Step.DTIFIT, file1=fa.name
@@ -45,38 +56,13 @@ class Command(TyperCommand):
                     logging.info("Found object. Skipping")
                     continue
                 else:
-                    i = _private.get_dtifit(
-                        nii=nb.nifti1.Nifti1Image.load(fa),
-                        v1=nb.nifti1.Nifti1Image.load(
-                            fa.with_name(fa.name.replace("FA", "V1"))
-                        ),
-                        v2=nb.nifti1.Nifti1Image.load(
-                            fa.with_name(fa.name.replace("FA", "V2"))
-                        ),
-                        v3=nb.nifti1.Nifti1Image.load(
-                            fa.with_name(fa.name.replace("FA", "V3"))
-                        ),
-                    )
-                    asyncio.run(image.aupdate(img=i))
+                    logging.info("Found object. Updating")
+                    image.update(img=i)
 
             else:
-                i = _private.get_dtifit(
-                    nii=nb.nifti1.Nifti1Image.load(fa),
-                    v1=nb.nifti1.Nifti1Image.load(
-                        fa.with_name(fa.name.replace("FA", "V1"))
-                    ),
-                    v2=nb.nifti1.Nifti1Image.load(
-                        fa.with_name(fa.name.replace("FA", "V2"))
-                    ),
-                    v3=nb.nifti1.Nifti1Image.load(
-                        fa.with_name(fa.name.replace("FA", "V3"))
-                    ),
-                )
-                asyncio.run(
-                    models.Image.objects.acreate(
-                        img=i,
-                        display=models.DisplayMode.Z,
-                        step=models.Step.DTIFIT,
-                        file1=fa.name,
-                    )
+                models.Image.objects.create(
+                    img=i,
+                    display=models.DisplayMode.Z,
+                    step=models.Step.DTIFIT,
+                    file1=fa.name,
                 )

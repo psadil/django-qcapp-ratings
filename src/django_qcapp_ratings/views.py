@@ -35,11 +35,7 @@ class RatePartial(views.View):
         await request.session.aset(IMG_TASK, img_task.id)
         await request.session.aset("image_id", img.id)
         logging.info(f"rendering {img.id}")
-        return shortcuts.render(
-            request,
-            self.template_name,
-            {"img_type": img.img_type, "image": img.img_decoded},
-        )
+        return shortcuts.render(request, self.template_name, {"image": img.img_decoded})
 
 
 class ClickPartial(RatePartial):

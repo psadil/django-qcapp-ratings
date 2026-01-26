@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import typing as t
 from pathlib import Path
@@ -28,6 +27,9 @@ class Command(TyperCommand):
         ],
         include: t.Annotated[list[str] | None, typer.Option()] = None,
         exclude: t.Annotated[list[str] | None, typer.Option()] = None,
+        update: t.Annotated[
+            bool, typer.Option(help="Whether to update img in database")
+        ] = False,
     ):
         """
         Add surface localization figures
@@ -53,23 +55,27 @@ class Command(TyperCommand):
                 logging.info(f"{display_mode=}")
                 for cut in range(_private.N_CUTS):
                     logging.info(f"{cut=}")
-                    if models.Image.objects.filter(
-                        slice=cut,
-                        display=display_mode[0],
-                        step=models.Step.SURFACE_LOCALIZATION,
-                        file1=file1,
-                    ).exists():
-                        logging.info("Found object. Skipping")
-                        continue
-
                     i = _private.get_surface_localization(
                         cut=cut,
                         display_mode=models.DisplayMode(display_mode[0]),
                         brain_nii=brain_nii,
                         ribbon_nii=ribbon_nii,
                     )
-                    asyncio.run(
-                        models.Image.objects.acreate(
+                    if (
+                        image := models.Image.objects.filter(
+                            slice=cut,
+                            display=display_mode[0],
+                            step=models.Step.SURFACE_LOCALIZATION,
+                            file1=file1,
+                        )
+                    ).exists():
+                        if not update:
+                            logging.info("Found object. Skipping")
+                        else:
+                            logging.info("Found object. Updating")
+                            image.update(img=i)
+                    else:
+                        models.Image.objects.create(
                             img=i,
                             slice=cut,
                             display=display_mode[0],
@@ -77,4 +83,3 @@ class Command(TyperCommand):
                             file1=file1,
                             file2=str(fs.mri.brain.relative_to(subjects_dir)),
                         )
-                    )
