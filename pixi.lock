@@ -514,7 +514,7 @@ packages:
 - pypi: .
   name: django-dirt-ratings
   requires_dist:
-  - celery>=5.6.0
+  - celery>=5.5.0
   - django>=6.0.0
   - django-typer>=3.2.0
   - django-ninja>=1.2.0
