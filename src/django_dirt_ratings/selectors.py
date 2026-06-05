@@ -7,7 +7,7 @@ from celery import result
 from django import http
 from django.db import models as dm
 
-from django_qcapp_ratings import models
+from django_dirt_ratings import models
 
 TASK_TIMEOUT_SEC = 30
 

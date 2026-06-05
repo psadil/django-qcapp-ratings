@@ -1,7 +1,7 @@
 from django.urls import path
 
-from django_qcapp_ratings import views
-from django_qcapp_ratings.api import api
+from django_dirt_ratings import views
+from django_dirt_ratings.api import api
 
 urlpatterns = [
     path("", views.LayoutView.as_view(), name="index"),

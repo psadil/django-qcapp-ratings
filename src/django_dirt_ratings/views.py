@@ -5,7 +5,7 @@ from celery.exceptions import TimeoutError
 from django import http, shortcuts, urls, views
 from django.views.generic import edit
 
-from django_qcapp_ratings import forms, models, selectors, tasks
+from django_dirt_ratings import forms, models, selectors, tasks
 
 MASK_VIEW = "mask"
 SPATIAL_NORMALIZATION_VIEW = "spatial_normalization"

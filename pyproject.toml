@@ -1,21 +1,25 @@
 [project]
-name = "django-qcapp-ratings"
+name = "django-dirt-ratings"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 authors = [{ name = "Patrick Sadil", email = "psadil@gmail.com" }]
 requires-python = ">=3.12"
 dependencies = [
-    "celery>=5.5.3",
-    "django>=5.2.4",
-    "django-typer[rich]>=3.2.0",
+    "celery>=5.6.0",
+    "django>=6.0.0",
+    "django-typer>=3.2.0",
     "django-ninja>=1.2.0",
     "orjson>=3.11.1",
+    "neurorm @ git+https://github.com/psadil/neurorm.git",
 ]
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [dependency-groups]
 dev = ["celery-types>=0.23.0", "django-stubs>=5.2.2", "jupyter>=1.1.1"]
@@ -32,5 +36,16 @@ manage = [
     "pygifsicle>=1.1.0",
 ]
 
-[tool.uv.sources]
-neurorm = { git = "https://github.com/psadil/neurorm.git" }
+[tool.pixi.workspace]
+channels = ["conda-forge"]
+platforms = ["osx-arm64"]
+
+[tool.pixi.pypi-dependencies]
+django-dirt-ratings = { path = ".", editable = true }
+
+[tool.pixi.environments]
+default = { solve-group = "default" }
+dev = { features = ["dev"], solve-group = "default" }
+manage = { features = ["manage"], solve-group = "default" }
+
+[tool.pixi.tasks]

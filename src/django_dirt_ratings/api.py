@@ -5,7 +5,7 @@ import orjson
 from django import http, shortcuts
 from ninja import Schema, parser, renderers
 
-from django_qcapp_ratings import models
+from django_dirt_ratings import models
 
 
 class ORJSONParser(parser.Parser):

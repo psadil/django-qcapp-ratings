@@ -3,7 +3,7 @@ import typing
 import celery
 from asgiref import sync
 
-from django_qcapp_ratings import models, selectors
+from django_dirt_ratings import models, selectors
 
 
 @celery.shared_task

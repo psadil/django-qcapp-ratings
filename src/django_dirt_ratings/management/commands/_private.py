@@ -20,7 +20,7 @@ from nilearn import image, plotting
 from nilearn.plotting import displays
 from scipy import ndimage
 
-from django_qcapp_ratings import datasets, models
+from django_dirt_ratings import datasets, models
 
 N_CUTS = 7
 SPATIAL_NORMALIZATION_CUTS = {

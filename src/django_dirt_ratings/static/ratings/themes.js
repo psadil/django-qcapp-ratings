@@ -47,7 +47,7 @@ class ThemeSwitcher {
         this.themeText.textContent = themeConfig.text;
 
         // Update body class
-        document.body.className = `qcapp-body theme-${theme}`;
+        document.body.className = `dirt-body theme-${theme}`;
 
         // Save to localStorage
         localStorage.setItem('theme', theme);

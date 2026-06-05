@@ -1,6 +1,6 @@
 from django import forms
 
-from django_qcapp_ratings import models
+from django_dirt_ratings import models
 
 Textarea = forms.Textarea(attrs={"class": "form-control"})
 CheckboxInput = forms.CheckboxInput(attrs={"class": "form-check-input"})

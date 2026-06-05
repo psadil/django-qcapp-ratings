@@ -12,7 +12,7 @@ from django_typer.completers import path
 from django_typer.management import TyperCommand
 from nibabel import spatialimages
 
-from django_qcapp_ratings import models
+from django_dirt_ratings import models
 
 from . import _private
 

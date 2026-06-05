@@ -4,7 +4,7 @@ from pathlib import Path
 
 def get_data(file: str) -> Path:
     with resources.as_file(
-        resources.files("django_qcapp_ratings.data").joinpath(file)
+        resources.files("django_dirt_ratings.data").joinpath(file)
     ) as f:
         out = f
     return out
